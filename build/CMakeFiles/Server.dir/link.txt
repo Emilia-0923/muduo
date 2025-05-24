@@ -1,0 +1,1 @@
+/usr/bin/c++ CMakeFiles/Server.dir/home/emilia/Disk/Code/project/Http_Server/source/Main.cpp.o -o Server 
