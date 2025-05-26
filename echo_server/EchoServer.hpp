@@ -5,13 +5,13 @@ private:
     TcpServer server;
 
 private:
-    void on_connected(Connection::Shared_Conn conn) {
+    void on_connected(Connection::ptr conn) {
         loging(DEBUG, "====================");
         loging(DEBUG, "新连接: %p", conn.get());
         loging(DEBUG, "====================");
     }
 
-    void on_message(Connection::Shared_Conn conn, Buffer& buf) {
+    void on_message(Connection::ptr conn, Buffer& buf) {
         // char buffer[65536];
         // int size = buf.read_able_size();
         // buf.read(buffer, size);
@@ -26,7 +26,7 @@ private:
         conn->shutdown();
     }
 
-    void on_close(Connection::Shared_Conn conn) {
+    void on_close(Connection::ptr conn) {
         loging(DEBUG, "====================");
         loging(DEBUG, "连接: %p, 将要关闭了", conn.get());
         loging(DEBUG, "====================");

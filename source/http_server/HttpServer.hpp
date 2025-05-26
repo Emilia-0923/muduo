@@ -36,12 +36,12 @@ private:
     }
 
     //设置上下文
-    void on_connected(const Connection::Shared_Conn& conn) {
+    void on_connected(const Connection::ptr& conn) {
         conn->set_context(HttpContext());
     }
 
     //缓冲区数据解析+处理
-    void on_message(const Connection::Shared_Conn& conn, Buffer& buf) {
+    void on_message(const Connection::ptr& conn, Buffer& buf) {
         while(buf.read_able_size() > 0){
             HttpContext *context = conn->get_context().get<HttpContext>();
             //读取缓冲区的内容, 把内容解析写入到req中以构建req
@@ -242,7 +242,7 @@ private:
     }
 
     //将http_response中的数据按照http协议的格式进行组织和发送
-    void write_response(const Connection::Shared_Conn& conn, HttpResponse& rsp) {
+    void write_response(const Connection::ptr& conn, HttpResponse& rsp) {
         //首行
         std::stringstream rsp_stream;
         rsp_stream << rsp.version << " " << std::to_string(rsp.status) << " " << HttpUtil::status_desc(rsp.status) << "\r\n";

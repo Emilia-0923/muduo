@@ -20,11 +20,11 @@ namespace muduo
             uint16_t port;
         };
         
-        using Shared_Conn = std::shared_ptr<Connection>;
-        using conn_func = std::function<void(Shared_Conn)>;
-        using msg_func = std::function<void(Shared_Conn, Buffer&)>;
-        using close_func = std::function<void(Shared_Conn)>;
-        using event_func = std::function<void(Shared_Conn)>;
+        using ptr = std::shared_ptr<Connection>;
+        using conn_func = std::function<void(ptr)>;
+        using msg_func = std::function<void(ptr, Buffer&)>;
+        using close_func = std::function<void(ptr)>;
+        using event_func = std::function<void(ptr)>;
 
     private:
 

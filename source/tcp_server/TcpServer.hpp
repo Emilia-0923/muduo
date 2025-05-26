@@ -17,7 +17,7 @@ namespace muduo
         EventLoop base_loop; //主线程的EventLoop,负责监听事件的处理
         Acceptor acceptor; //监听套接字的管理对象
         LoopThreadPool loop_pool; //EventLoop线程池
-        std::unordered_map<uint64_t, Connection::Shared_Conn> connections;
+        std::unordered_map<uint64_t, Connection::ptr> connections;
 
         Connection::conn_func conn_cb;
         Connection::msg_func msg_cb;
@@ -27,7 +27,7 @@ namespace muduo
     private:
         void new_connection(const Connection::Connection_Info& info) {
             id++;
-            Connection::Shared_Conn conn = std::make_shared<Connection>(loop_pool.next_loop(), id, info);
+            Connection::ptr conn = std::make_shared<Connection>(loop_pool.next_loop(), id, info);
             conn->set_conn_cb(conn_cb);
             conn->set_msg_cb(msg_cb);
             conn->set_close_cb(close_cb);
@@ -40,7 +40,7 @@ namespace muduo
             connections.emplace(id, conn);
         }
 
-        void remove_connection_in_loop(const Connection::Shared_Conn& _conn) {
+        void remove_connection_in_loop(const Connection::ptr& _conn) {
             uint64_t remove_id = _conn->get_id();
             auto it = connections.find(remove_id);
             if (it != connections.end()) {
@@ -52,7 +52,7 @@ namespace muduo
             }
         }
 
-        void remove_connection(const Connection::Shared_Conn& _conn) {
+        void remove_connection(const Connection::ptr& _conn) {
             base_loop.run_in_loop(std::bind(&TcpServer::remove_connection_in_loop, this, _conn));
         }
 
