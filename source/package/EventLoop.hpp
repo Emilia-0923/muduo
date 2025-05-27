@@ -128,7 +128,7 @@ namespace muduo
         }
 
         void assert_in_loop() {
-            if (thread_id == std::this_thread::get_id()) {
+            if (thread_id != std::this_thread::get_id()) {
                 logging.fatal("线程执行任务错误!");
                 abort();
             }

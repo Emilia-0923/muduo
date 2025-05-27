@@ -3,7 +3,7 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
-#include "EventLoop.hpp"
+#include "../package/EventLoop.hpp"
 
 namespace muduo
 {
@@ -30,6 +30,10 @@ namespace muduo
     public:
         LoopThread()
             : loop(nullptr), loop_thread(std::thread(&LoopThread::thread_entry, this)) {
+        }
+
+        ~LoopThread() {
+            loop_thread.join();
         }
 
         EventLoop* get_loop() {

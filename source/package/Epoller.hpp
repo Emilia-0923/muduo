@@ -56,7 +56,6 @@ namespace muduo
 
             int n = 0;
             if (ret == false) {
-                logging.debug("Epoller 将要添加的 Channel fd: %d.", fd);
                 int n = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event);
                 if (n == 0) {
                     channels.emplace(fd, _channel);

@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Socket.hpp"
-#include "Connection.hpp"
-#include "EventLoop.hpp"
-#include "Channel.hpp"
+#include "../package/Socket.hpp"
+#include "../package/Connection.hpp"
+#include "../package/EventLoop.hpp"
+#include "../package/Channel.hpp"
 
 namespace muduo
 {
@@ -11,7 +11,7 @@ namespace muduo
     {
     public:
 
-        using acceptor_func = std::function<void(const Connection::Connection_Info&)>;
+        using acceptor_func = std::function<void(const Connection::Info&)>;
 
     private:
 
@@ -29,20 +29,20 @@ namespace muduo
                 logging.error("监听套接字与客户端建立连接时,发生错误!");
                 return;
             }
-            Connection::Connection_Info info = { newfd, ip, port };
+            Connection::Info info = { newfd, ip, port };
             if (accept_cb) {
                 accept_cb(info);
             }
         }
 
-        Socket& create_server(uint16_t port) {
-            listen_socket.create_server(Socket::IPV4_TCP, "0.0.0.0", port);
+        Socket& create_server(uint16_t port, const std::string& ip) {
+            listen_socket.create_server(Socket::IPV4_TCP, ip, port);
             return listen_socket;
         }
 
     public:
-        Acceptor(EventLoop* loop, int port)
-            : loop(loop), listen_socket(create_server(port)), listen_channel(listen_socket.get_fd(), loop) {
+        Acceptor(EventLoop* loop, int port, const std::string& ip)
+            : loop(loop), listen_socket(create_server(port, ip)), listen_channel(listen_socket.get_fd(), loop) {
             listen_channel.set_read_cb(std::bind(&Acceptor::handle_read, this));
         }
 

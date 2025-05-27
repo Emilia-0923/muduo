@@ -1,9 +1,9 @@
 #pragma once
 
-#include "NetWork.hpp"
-#include "Connection.hpp"
+#include "../package/NetWork.hpp"
+#include "../package/Connection.hpp"
+#include "../package/LoopThreadPool.hpp"
 #include "Acceptor.hpp"
-#include "LoopThreadPool.hpp"
 
 namespace muduo
 {
@@ -25,7 +25,7 @@ namespace muduo
         Connection::event_func event_cb;
 
     private:
-        void new_connection(const Connection::Connection_Info& info) {
+        void new_connection(const Connection::Info& info) {
             id++;
             Connection::ptr conn = std::make_shared<Connection>(loop_pool.next_loop(), id, info);
             conn->set_conn_cb(conn_cb);
@@ -62,8 +62,8 @@ namespace muduo
         }
 
     public:
-        TcpServer(uint16_t _port)
-            : port(_port), id(0), inactive_release(false), acceptor(&base_loop, port), loop_pool(&base_loop) {
+        TcpServer(uint16_t _port, const std::string& _ip = "0.0.0.0")
+            : port(_port), id(0), inactive_release(false), acceptor(&base_loop, _port, _ip), loop_pool(&base_loop) {
             acceptor.set_accept_cb(std::bind(&TcpServer::new_connection, this, std::placeholders::_1));
             acceptor.listen();
         }

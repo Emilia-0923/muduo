@@ -12,14 +12,14 @@ namespace muduo
     {
     public:
 
-        enum
+        enum Error
         {
             SocketErr = 1,
             BindErr = 2,
             ListenErr = 3,
         };
 
-        enum SocketProtocal
+        enum Protocol
         {
             IPV4_TCP,
             IPV6_TCP,
@@ -31,18 +31,18 @@ namespace muduo
         {
             int domain;
             int type;
-            int protocal;
+            int protocol;
 
             SocketType(){}
 
-            SocketType(int domain, int type, int protocal)
+            SocketType(int domain, int type, int protocol)
                 : domain(domain)
                 , type(type)
-                , protocal(protocal)
+                , protocol(protocol)
             {}
         };
 
-        SocketProtocal protocal;
+        Protocol protocol;
         SocketType socket_type;
         int socket_fd;
 
@@ -54,9 +54,9 @@ namespace muduo
         Socket()
             : socket_fd(-1), socket_type(-1, -1, -1){}
 
-        Socket(int socket_fd, SocketProtocal protocal)
-            : socket_fd(socket_fd), protocal(protocal) {
-            switch (protocal)
+        Socket(int socket_fd, Protocol protocol)
+            : socket_fd(socket_fd), protocol(protocol) {
+            switch (protocol)
             {
             case IPV4_TCP:
                 socket_type = SocketType(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -75,15 +75,15 @@ namespace muduo
             remove();
         }
         
-        void create(int domain, int type, int protocal) {
+        void create(int domain, int type, int protocol) {
             socket_type.domain = domain;
             socket_type.type = type;
-            socket_type.protocal = protocal;
-            socket_fd = socket(socket_type.domain, socket_type.type, socket_type.protocal);
+            socket_type.protocol = protocol;
+            socket_fd = socket(socket_type.domain, socket_type.type, socket_type.protocol);
             if (socket_fd < 0)
             {
                 logging.fatal("Socket 创建错误, %s: %d.", strerror(errno), errno);
-                exit(SocketErr);
+                exit(Error::SocketErr);
             }
             logging.info("Socket 创建成功, socket_fd: %d!", socket_fd);
         }
@@ -109,7 +109,7 @@ namespace muduo
                 if (::bind(socket_fd, (sockaddr*)&local, sizeof(local)) < 0)
                 {
                     logging.fatal("Socket 绑定端口错误, %s: %d.", strerror(errno), errno);
-                    exit(BindErr);
+                    exit(Error::BindErr);
                 }
                 logging.info("Socket 绑定端口成功, port: %d!", port);
             }
@@ -120,7 +120,7 @@ namespace muduo
             if (::listen(socket_fd, back_loging) < 0)
             {
                 logging.fatal("Socket 监听错误, %s: %d.", strerror(errno), errno);
-                exit(ListenErr);
+                exit(Error::ListenErr);
             }
             logging.info("Socket 监听成功!");
         }
@@ -146,9 +146,9 @@ namespace muduo
 
 
         //创建一个服务端连接
-        void create_server(SocketProtocal protocal, const std::string &ip, uint16_t port, bool block_flag = false) {
+        void create_server(Protocol protocol, const std::string &ip, uint16_t port, bool block_flag = false) {
             //1. 创建套接字，2. 绑定地址，3. 开始监听，4. 设置非阻塞， 5. 启动地址重用
-            switch (protocal)
+            switch (protocol)
             {
             case IPV4_TCP:
                 create(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -170,9 +170,9 @@ namespace muduo
         }
 
         //创建一个客户端连接
-        bool create_client(SocketProtocal protocal, const std::string &ip, uint16_t port) {
+        bool create_client(Protocol protocol, const std::string &ip, uint16_t port) {
             //1. 创建套接字，2.指向连接服务器
-            switch (protocal)
+            switch (protocol)
             {
             case IPV4_TCP:
                 create(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -184,8 +184,7 @@ namespace muduo
                 logging.fatal("协议参数错误!");
                 abort();
             }
-            if (connect(ip, port) == false) return false;
-            return true;
+            return connect(ip, port);
         }
 
         //设置套接字选项---开启地址端口重用
