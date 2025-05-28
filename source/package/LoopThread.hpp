@@ -30,10 +30,7 @@ namespace muduo
     public:
         LoopThread()
             : loop(nullptr), loop_thread(std::thread(&LoopThread::thread_entry, this)) {
-        }
-
-        ~LoopThread() {
-            loop_thread.join();
+            loop_thread.detach();
         }
 
         EventLoop* get_loop() {

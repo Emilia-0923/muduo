@@ -40,7 +40,7 @@ namespace muduo
         }
 
         ~Epoller() {
-            logging.info("epoll_fd: %d 被释放!", epoll_fd);
+            logging.info("~Epoller %d 被释放!", epoll_fd);
             if (epoll_fd >= 0) {
                 close(epoll_fd);
             }
@@ -61,13 +61,13 @@ namespace muduo
                     channels.emplace(fd, _channel);
                 }
                 else {
-                    logging.error("epoll_ctl 添加错误: %s", strerror(errno));
+                    logging.error("Epoller::update 添加错误: %s", strerror(errno));
                 }
             }
             else {
                 int n = epoll_ctl(epoll_fd, EPOLL_CTL_MOD, fd, &event);
                 if (n != 0) {
-                    logging.error("epoll_ctl 修改错误: %s", strerror(errno));
+                    logging.error("Epoller::update 修改错误: %s", strerror(errno));
                 }
             }
         }
@@ -85,7 +85,7 @@ namespace muduo
             
             int n = epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fd, &event);
             if (n < 0) {
-                logging.error("epoll_ctl 删除错误: %s", strerror(errno));
+                logging.error("Epoller::remove 删除错误: %s", strerror(errno));
             }
         }
 
@@ -101,14 +101,14 @@ namespace muduo
                     return;
                 }
                 else {
-                    logging.fatal("epoll_wait 等待错误: %s", strerror(errno));
+                    logging.fatal("Epoller::wait 等待错误: %s", strerror(errno));
                     abort();
                 }
             }
             for (int i = 0; i < n; i++) {
                 auto it = channels.find(events[i].data.fd);
                 if (it == channels.end()) {
-                    logging.fatal("epoll_wait 中等待的事件不存在!");
+                    logging.fatal("Epoller::wait 中等待的事件不存在!");
                     abort();
                 }
                 it->second->set_event(events[i].events);

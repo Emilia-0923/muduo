@@ -4,121 +4,119 @@
 #include "../package/Connection.hpp"
 
 namespace muduo {
+    class TcpClient {
+    private:
+        using conn_func = Connection::conn_func;
+        using msg_func = Connection::msg_func;
+        using close_func = Connection::close_func;
+        
+        EventLoop* loop;
+        std::shared_ptr<Connector> connector;
+        std::string server_ip;
+        uint16_t server_port;
+        bool retry;
+        bool is_connected;
+        std::mutex mtx;
+        Connection::ptr conn;
+        conn_func conn_cb;
+        msg_func msg_cb;
+        close_func close_cb;
 
-class TcpClient {
-private:
-    using conn_func = Connection::conn_func;
-    using msg_func = Connection::msg_func;
-    using close_func = Connection::close_func;
-    
-    EventLoop* loop_;
-    std::shared_ptr<Connector> connector_;
-    std::string server_ip_;
-    uint16_t server_port_;
-    bool retry_;
-    bool connected_;
-    std::mutex mutex_;
-    Connection::ptr connection_;
-    conn_func conn_cb_;
-    msg_func msg_cb_;
-    close_func close_cb_;
+    public:
 
-public:
+        TcpClient(EventLoop* _loop, const std::string& _ip, uint16_t _port)
+            : loop(_loop)
+            ,  connector(new Connector(_loop, _ip, _port))
+            ,  server_ip(_ip)
+            ,  server_port(_port)
+            ,  retry(false)
+            ,  is_connected(true) {
+            connector->set_new_conn_cb(std::bind(&TcpClient::new_connection, this, std::placeholders::_1));
+        }
 
-    TcpClient(EventLoop* loop, const std::string& ip, uint16_t port)
-        : loop_(loop)
-        ,  connector_(new Connector(loop, ip, port))
-        ,  server_ip_(ip)
-        ,  server_port_(port)
-        ,  retry_(false)
-        ,  connected_(true) {
-        connector_->set_new_conn_cb(std::bind(&TcpClient::new_connection, this, std::placeholders::_1));
-    }
+        ~TcpClient() {
+            disconnect();
+        }
 
-    ~TcpClient() {
-        disconnect();
-    }
+        void connect() {
+            is_connected = true;
+            connector->start();
+        }
 
-    void connect() {
-        connected_ = true;
-        connector_->start();
-    }
-
-    void disconnect() {
-        connected_ = false;
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            if (connection_) {
-                connection_->shutdown();
+        void disconnect() {
+            is_connected = false;
+            {
+                std::lock_guard<std::mutex> lock(mtx);
+                if (conn) {
+                    conn->shutdown();
+                }
             }
-        }
-        connector_->stop();
-    }
-
-    void enable_retry() {
-        retry_ = true;
-    }
-
-    void set_conn_cb(conn_func cb) {
-        conn_cb_ = cb;
-    }
-
-    void set_msg_cb(msg_func cb) {
-        msg_cb_ = cb;
-    }
-
-    void set_close_callback(close_func cb) {
-        close_cb_ = cb;
-    }
-
-    void stop() {
-        connected_ = false;
-        connector_->stop();
-    }
-
-private:
-    void new_connection(int _sockfd) {
-        loop_->assert_in_loop();
-
-        Connection::Info info;
-        info.fd = _sockfd;
-        info.ip = server_ip_;
-        info.port = server_port_;
-
-        Connection::ptr new_conn = std::make_shared<Connection>(loop_, 0, info);
-        new_conn->set_conn_cb(conn_cb_);
-        new_conn->set_msg_cb(msg_cb_);
-        new_conn->set_close_cb(close_cb_);
-        new_conn->set_svr_close_cb(std::bind(&TcpClient::remove_connection, this, std::placeholders::_1));
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            connection_ = new_conn;
+            connector->stop();
         }
 
-        new_conn->established();
-    }
-
-    void remove_connection(const Connection::ptr& conn) {
-        loop_->assert_in_loop();
-        if(loop_ == conn->get_loop()) {
-            logging.fatal("remove_connection");
+        void enable_retry() {
+            retry = true;
         }
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            if (connection_ == conn) {
-                logging.fatal("remove_connection");
+
+        void set_conn_cb(conn_func cb) {
+            conn_cb = cb;
+        }
+
+        void set_msg_cb(msg_func cb) {
+            msg_cb = cb;
+        }
+
+        void set_close_callback(close_func cb) {
+            close_cb = cb;
+        }
+
+        void stop() {
+            is_connected = false;
+            connector->stop();
+        }
+
+    private:
+        void new_connection(int _sockfd) {
+            loop->assert_in_loop();
+
+            Connection::Info info;
+            info.fd = _sockfd;
+            info.ip = server_ip;
+            info.port = server_port;
+
+            Connection::ptr new_conn = std::make_shared<Connection>(loop, 0, info);
+            new_conn->set_conn_cb(conn_cb);
+            new_conn->set_msg_cb(msg_cb);
+            new_conn->set_close_cb(close_cb);
+            new_conn->set_svr_close_cb(std::bind(&TcpClient::remove_connection, this, std::placeholders::_1));
+            {
+                std::lock_guard<std::mutex> lock(mtx);
+                conn = new_conn;
+            }
+
+            new_conn->established();
+        }
+
+        void remove_connection(const Connection::ptr& _conn) {
+            loop->assert_in_loop();
+            if(loop != conn->get_loop()) {
+                logging.fatal("TcpClient::remove_connection loop != conn->get_loop()");
                 abort();
             }
-            connection_.reset();
-        }
-        
-        loop_->push_task(std::bind(&Connection::release, conn));
+            {
+                std::lock_guard<std::mutex> lock(mtx);
+                if(conn != _conn) {
+                    logging.fatal("TcpClient::remove_connection conn != _conn");
+                    abort();
+                }
+                conn.reset();
+            }
+            loop->push_task(std::bind(&Connection::release, _conn));
 
-        if (retry_ && connected_) {
-            logging.info("尝试重新连接 %s:%d", server_ip_.c_str(), server_port_);
-            connector_->restart();
+            if (retry && is_connected) {
+                logging.info("尝试重新连接 %s:%d", server_ip.c_str(), server_port);
+                connector->restart();
+            }
         }
-    }
-};
-
+    };
 }

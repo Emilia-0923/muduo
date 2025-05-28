@@ -9,7 +9,7 @@ namespace muduo {
     class Connector : public std::enable_shared_from_this<Connector> {
     private:
         enum State { DISCONNECTED, CONNECTING, CONNECTED };
-        const int max_retry_delay = 30;
+        const int max_retry_delay = 8;
         const int init_retry_delay = 1;
         uint64_t timer_id = reinterpret_cast<uint64_t>(this);
 
@@ -38,7 +38,7 @@ namespace muduo {
 
         ~Connector() {
             if(channel) {
-                logging.fatal("channel 未知错误");
+                logging.fatal("~Connector channel 未知错误");
                 abort();
             }
         }
@@ -63,7 +63,9 @@ namespace muduo {
         void stop() {
             is_connect = false;
             loop->push_task(std::bind(&Connector::stop_in_loop, shared_from_this()));
-            loop->timer_cancel(timer_id);
+            if(loop->has_timer(timer_id)) {
+                loop->timer_cancel(timer_id);
+            }
         }
 
     private:
@@ -73,7 +75,7 @@ namespace muduo {
         void start_in_loop() {
             loop->assert_in_loop();
             if (state != DISCONNECTED) {
-                logging.fatal("状态错误: %d", state);
+                logging.fatal("Connector::start_in_loop 状态错误: %d", state);
             }
 
             if (is_connect) {
@@ -101,18 +103,28 @@ namespace muduo {
             addr.sin_port = htons(server_port);
             inet_pton(AF_INET, server_ip.c_str(), &addr.sin_addr);
             int ret = ::connect(socket_fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
-
-            if (ret < 0 && errno != EINPROGRESS && errno != EINTR && errno != EISCONN) {
-                logging.error("连接失败: %s", strerror(errno));
-                ::close(socket_fd);
-                socket_fd = -1;
+            int err = ret == 0 ? 0 : errno;
+            switch (err)//错误处理
+            {
+                case 0: case EINPROGRESS: case EINTR: case EISCONN:
+                connecting(socket_fd);
+                break;
+                case EAGAIN: case EADDRINUSE: case EADDRNOTAVAIL: case ECONNREFUSED: case ENETUNREACH:
                 retry(socket_fd);
-                return;
+                break;
+                case EACCES: case EPERM: case EAFNOSUPPORT: case EALREADY: case EBADF: case EFAULT: case ENOTSOCK:
+                ::close(socket_fd);
+                break;
+                default:
+                ::close(socket_fd);
+                break;
             }
+        }
 
+        void connecting(int socket_fd) {
             state = CONNECTING;
             if(channel) {
-                logging.fatal("channel 未知错误");
+                logging.fatal("Connector::connecting channel 未知错误");
                 abort();
             }
             channel.reset(new Channel(socket_fd, loop));
@@ -123,7 +135,7 @@ namespace muduo {
 
         void handle_write() {
             if (state != CONNECTING) {
-                logging.fatal("状态错误: %d", state);
+                logging.fatal("Connector::handle_writes 状态错误: %d", state);
                 abort();
             }
             int socket_fd = remove_and_reset_channel();
@@ -178,7 +190,7 @@ namespace muduo {
             ::close(socket_fd);
             state = DISCONNECTED;
             if (is_connect) {
-                logging.info("将在 %dms 后重试连接 %s:%d",
+                logging.info("将在 %ds 后重试连接 %s:%d",
                             retry_delay, server_ip.c_str(), server_port);
                 loop->timer_add(timer_id, retry_delay, std::bind(&Connector::start_in_loop, shared_from_this()));
                 retry_delay = std::min(retry_delay * 2, max_retry_delay);

@@ -128,7 +128,7 @@ namespace muduo
             //修改连接状态
             if(status != CONNECTING)
             {
-                logging.fatal("错误! 连接状态不为预期状态");
+                logging.fatal("Connection::established_in_loop 错误! 连接状态不为预期状态");
                 abort();
             }
             status = CONNECTED;
@@ -140,6 +140,10 @@ namespace muduo
 
         //释放接口
         void release_in_loop() {
+            if (status == DISCONNECTED) {
+                logging.warning("连接已经被释放，跳过重复释放操作");
+                return;
+            }
             status = DISCONNECTED;
             //先取消事件关心
             conn_channel.disable_all();
