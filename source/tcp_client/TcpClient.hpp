@@ -35,7 +35,13 @@ namespace muduo {
         }
 
         ~TcpClient() {
-            disconnect();
+            logging.debug("TcpClient::~TcpClient()");
+            if(is_connected) {
+                disconnect();
+            }
+            else {
+                stop();
+            }
         }
 
         void connect() {
@@ -58,15 +64,15 @@ namespace muduo {
             retry = true;
         }
 
-        void set_conn_cb(conn_func cb) {
+        void set_conn_cb(const conn_func& cb) {
             conn_cb = cb;
         }
 
-        void set_msg_cb(msg_func cb) {
+        void set_msg_cb(const msg_func& cb) {
             msg_cb = cb;
         }
 
-        void set_close_callback(close_func cb) {
+        void set_close_cb(const close_func& cb) {
             close_cb = cb;
         }
 
@@ -88,35 +94,12 @@ namespace muduo {
             new_conn->set_conn_cb(conn_cb);
             new_conn->set_msg_cb(msg_cb);
             new_conn->set_close_cb(close_cb);
-            new_conn->set_svr_close_cb(std::bind(&TcpClient::remove_connection, this, std::placeholders::_1));
             {
                 std::lock_guard<std::mutex> lock(mtx);
                 conn = new_conn;
             }
 
             new_conn->established();
-        }
-
-        void remove_connection(const Connection::ptr& _conn) {
-            loop->assert_in_loop();
-            if(loop != conn->get_loop()) {
-                logging.fatal("TcpClient::remove_connection loop != conn->get_loop()");
-                abort();
-            }
-            {
-                std::lock_guard<std::mutex> lock(mtx);
-                if(conn != _conn) {
-                    logging.fatal("TcpClient::remove_connection conn != _conn");
-                    abort();
-                }
-                conn.reset();
-            }
-            loop->push_task(std::bind(&Connection::release, _conn));
-
-            if (retry && is_connected) {
-                logging.info("尝试重新连接 %s:%d", server_ip.c_str(), server_port);
-                connector->restart();
-            }
         }
     };
 }
